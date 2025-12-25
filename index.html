@@ -320,22 +320,30 @@
         // 添加卡塔尔
         createCityMarker('卡塔尔', 25.276987, 51.522152, 0x55ff55);
         
-        // 添加中文时区标注 - 放在两条经线中间位置，紧贴地球表面
+        // ==========================================
+        // 修改时区标注 - 按照标准时区划分
+        // 零时区(UTC±0): 7.5°W 至 7.5°E, 中心在0°
+        // 东一区(UTC+1): 7.5°E 至 22.5°E, 中心在15°E
+        // 依此类推
+        // ==========================================
+        // 添加中文时区标注 - 放在各时区中心位置，紧贴地球表面
+        // 零时区 (UTC±0)
+        createEquatorLabel(`零时区`, 0, 6, 0x00ff00, 40, true);
+        
+        // 东时区 (UTC+1 至 UTC+12)
         for (let i = 1; i <= 12; i++) {
-            // 东时区 (1-12)
-            const eastLng = i * 15 - 7.5; // 位于两条经线中间
+            const eastLng = i * 15; // 东i区中心在i*15°E
             createEquatorLabel(`东${getChineseNumber(i)}区`, eastLng, 6, 0x00ff00, 40, true);
-            
-            // 西时区 (1-12)
-            const westLng = -i * 15 + 7.5; // 位于两条经线中间
+        }
+        
+        // 西时区 (UTC-1 至 UTC-12)
+        for (let i = 1; i <= 12; i++) {
+            const westLng = -i * 15; // 西i区中心在i*15°W
             createEquatorLabel(`西${getChineseNumber(i)}区`, westLng, 6, 0x00ff00, 40, true);
         }
         
-        // 0时区特殊标注 (本初子午线)
-        createEquatorLabel(`零时区`, -7.5, 6, 0x00ff00, 40, true); // 位于352.5°E和7.5°E之间
-        
         // 180°国际日期变更线特殊标注
-        createEquatorLabel(`日界线`, 172.5, 6, 0x00ff00, 40, true); // 位于165°E和180°E之间
+        createEquatorLabel(`日界线`, 180, 6, 0x00ff00, 40, true);
 
         // ==========================================
         // 银河背景 - 简化实现
@@ -376,13 +384,15 @@
         
         // ==========================================
         // 创建24条绿色实线经线 + 经度标注
+        // 经线应位于时区边界: 7.5°, 22.5°, 37.5° 等
         // ==========================================
         function createEarthGrid() {
             const gridGroup = new THREE.Group();
             
-            // 创建24条经线，间隔15度，全部使用绿色实线
+            // 创建24条经线，位于时区边界 (7.5° + n*15°)
             for (let m = 0; m < 24; m++) {
-                const angle = (m / 24) * Math.PI * 2;
+                // 时区边界在 7.5° + n*15°
+                const angle = ((7.5 + m * 15) / 360) * Math.PI * 2;
                 const lineGeometry = new THREE.BufferGeometry();
                 const linePositions = [];
                 
@@ -405,16 +415,16 @@
                 gridGroup.add(line);
                 
                 // 为每条经线添加经度标注 - 紧贴地球表面
-                const longitude = m * 15;
+                const longitude = (7.5 + m * 15) % 360;
                 let label = "";
-                if (longitude === 0) {
-                    label = "0°";
-                } else if (longitude === 180) {
-                    label = "180°";
+                if (longitude === 7.5) {
+                    label = "7.5°E";
+                } else if (longitude === 187.5) {
+                    label = "172.5°W";
                 } else if (longitude < 180) {
-                    label = `${longitude}°E`;
+                    label = `${longitude.toFixed(1)}°E`;
                 } else {
-                    label = `${360 - longitude}°W`;
+                    label = `${(360 - longitude).toFixed(1)}°W`;
                 }
                 
                 // 在赤道下方添加经度标注，使用黄色，横排，紧贴地球 (字号设为40)
