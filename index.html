@@ -483,11 +483,9 @@
             console.log("使用基础地球材质");
             
             const earthGeometry = new THREE.SphereGeometry(earthRadius, 32, 32);
-            const earthMaterial = new THREE.MeshPhongMaterial({
+            const earthMaterial = new THREE.MeshBasicMaterial({
                 color: 0x2233ff,
                 emissive: 0x112244,
-                specular: 0x333333,
-                shininess: 15
             });
             
             const earth = new THREE.Mesh(earthGeometry, earthMaterial);
@@ -558,14 +556,11 @@
                 }
             );
             
-            // 创建地球材质
-            const earthMaterial = new THREE.MeshPhongMaterial({
+            // 创建地球材质 - 删除specular和shininess属性
+            const earthMaterial = new THREE.MeshBasicMaterial({
                 map: earthTexture,
                 bumpMap: bumpMap,
                 bumpScale: 2,
-                specularMap: specularMap,
-                specular: new THREE.Color(0x333333),
-                shininess: 15
             });
             
             const earth = new THREE.Mesh(earthGeometry, earthMaterial);
