@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>地球自转演示 - 紧贴地球表面的标注</title>
+    <title>地球自转演示 - 统一字号标注</title>
     <style>
         body { 
             margin: 0; 
@@ -106,12 +106,12 @@
     
     <div id="error-message">
         <div>⚠️ 资源加载失败</div>
-        <div>本地资源文件缺失或损坏</div>
+        <div>请尝试刷新页面或检查网络连接</div>
         <button id="retry-button">重试加载</button>
     </div>
     
-    <script src="three.min.js"></script>
-    <script src="OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
     <script>
         // 初始化场景、相机和渲染器
         const scene = new THREE.Scene();
@@ -161,12 +161,12 @@
             dot.position.set(x, y, z);
             earthGroup.add(dot);
 
-            // 创建文字标签
+            // 创建文字标签 (统一为40px)
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             canvas.width = 256;
             canvas.height = 64;
-            context.font = 'bold 40px Arial';
+            context.font = 'bold 40px Arial'; // 统一字号
             context.textAlign = 'center';
             context.textBaseline = 'middle';
             context.strokeStyle = '#000000';
@@ -191,7 +191,7 @@
         // ==========================================
         // 创建赤道时区与经度标注 - 紧贴地球表面
         // ==========================================
-        function createEquatorLabel(text, lng, heightOffset = 0, color = 0x00ff00, fontSize = 24, isVertical = true) {
+        function createEquatorLabel(text, lng, heightOffset = 0, color = 0x00ff00, fontSize = 40, isVertical = true) {
             // 赤道纬度为0
             const phi = (90 - 0) * Math.PI / 180; // 纬度0
             const theta = (lng + 180) * Math.PI / 180;
@@ -205,12 +205,13 @@
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             
+            // 根据文字方向设置画布大小
             if (isVertical) {
                 canvas.width = 128;
-                canvas.height = 128; // 竖排需要更高画布
+                canvas.height = 256; // 竖排需要更高画布以适应大字号
             } else {
-                canvas.width = 128;
-                canvas.height = 64; // 横排文字
+                canvas.width = 256; // 横排增加宽度
+                canvas.height = 80; // 横排增加高度
             }
             
             context.clearRect(0, 0, canvas.width, canvas.height);
@@ -224,7 +225,7 @@
             if (isVertical) {
                 // 竖排文字：逐字换行
                 const chars = text.split('');
-                const lineHeight = fontSize + 2;
+                const lineHeight = fontSize + 4;
                 chars.forEach((char, index) => {
                     const y = canvas.height / 2 - (chars.length - 1) * lineHeight / 2 + index * lineHeight;
                     context.strokeText(char, canvas.width / 2, y);
@@ -244,10 +245,9 @@
             const sprite = new THREE.Sprite(material);
             
             if (isVertical) {
-                // 优化：减小sprite缩放比例，使其更贴近地球表面
-                sprite.scale.set(24, 40, 1); // 竖排文字
+                sprite.scale.set(30, 60, 1); // 竖排缩放调整
             } else {
-                sprite.scale.set(40, 20, 1); // 横排文字
+                sprite.scale.set(60, 30, 1); // 横排缩放调整
             }
             
             // 优化：将标注紧贴地球表面
@@ -324,18 +324,18 @@
         for (let i = 1; i <= 12; i++) {
             // 东时区 (1-12)
             const eastLng = i * 15 - 7.5; // 位于两条经线中间
-            createEquatorLabel(`东${getChineseNumber(i)}区`, eastLng, 6, 0x00ff00, 16, true);
+            createEquatorLabel(`东${getChineseNumber(i)}区`, eastLng, 6, 0x00ff00, 40, true);
             
             // 西时区 (1-12)
             const westLng = -i * 15 + 7.5; // 位于两条经线中间
-            createEquatorLabel(`西${getChineseNumber(i)}区`, westLng, 6, 0x00ff00, 16, true);
+            createEquatorLabel(`西${getChineseNumber(i)}区`, westLng, 6, 0x00ff00, 40, true);
         }
         
         // 0时区特殊标注 (本初子午线)
-        createEquatorLabel(`零时区`, -7.5, 6, 0x00ff00, 16, true); // 位于352.5°E和7.5°E之间
+        createEquatorLabel(`零时区`, -7.5, 6, 0x00ff00, 40, true); // 位于352.5°E和7.5°E之间
         
         // 180°国际日期变更线特殊标注
-        createEquatorLabel(`日界线`, 172.5, 6, 0x00ff00, 16, true); // 位于165°E和180°E之间
+        createEquatorLabel(`日界线`, 172.5, 6, 0x00ff00, 40, true); // 位于165°E和180°E之间
 
         // ==========================================
         // 银河背景 - 简化实现
@@ -417,8 +417,8 @@
                     label = `${360 - longitude}°W`;
                 }
                 
-                // 在赤道下方添加经度标注，使用黄色，横排，紧贴地球
-                createEquatorLabel(label, longitude, -6, 0xffff00, 16, false);
+                // 在赤道下方添加经度标注，使用黄色，横排，紧贴地球 (字号设为40)
+                createEquatorLabel(label, longitude, -6, 0xffff00, 40, false);
             }
             
             return gridGroup;
@@ -468,7 +468,6 @@
         // 重试按钮
         document.getElementById('retry-button').addEventListener('click', function() {
             document.getElementById('error-message').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
             initEarth();
         });
         
@@ -508,87 +507,102 @@
             const progressBar = document.getElementById('progress-bar');
             
             loadingManager.onProgress = function(url, itemsLoaded, itemsTotal) {
-                const progress = Math.round(itemsLoaded / itemsTotal * 100);
-                progressBar.style.width = progress + '%';
-                console.log(`加载进度: ${progress}%`);
+                const progress = (itemsLoaded / itemsTotal) * 100;
+                progressBar.style.width = `${progress}%`;
             };
             
             loadingManager.onLoad = function() {
                 document.getElementById('loading').style.display = 'none';
-                console.log('所有本地资源加载完成！');
                 earthLoaded = true;
+                console.log("地球资源加载完成");
             };
             
             loadingManager.onError = function(url) {
-                console.error('本地资源加载失败:', url);
+                console.error('资源加载失败:', url);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error-message').style.display = 'block';
                 // 回退到基础地球
-                if (earthGroup.children.some(child => child instanceof THREE.Mesh && child.geometry instanceof THREE.SphereGeometry)) {
-                    // 已有地球，不需要再次创建
-                } else {
-                    createBasicEarth();
-                }
+                createBasicEarth();
             };
             
+            // 加载地球纹理
             const textureLoader = new THREE.TextureLoader(loadingManager);
             
-            // 使用本地地球纹理
-            const earthMapUrl = 'earth_atmos_2048.jpg';
-            const normalMapUrl = 'earth_normal_2048.jpg';
+            // 精简版地球纹理 (避免大图加载失败)
+            const earthTexture = textureLoader.load(
+                'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
+                function(texture) {
+                    console.log("地球纹理加载成功");
+                },
+                undefined,
+                function(error) {
+                    console.error('地球纹理加载失败:', error);
+                }
+            );
             
-            let earthMap;
-            let normalMap;
-            let earth;
+            const bumpMap = textureLoader.load(
+                'https://threejs.org/examples/textures/planets/earth_normal_2048.jpg',
+                undefined,
+                undefined,
+                function(error) {
+                    console.error('法线贴图加载失败:', error);
+                }
+            );
             
-            try {
-                earthMap = textureLoader.load(earthMapUrl);
-                normalMap = textureLoader.load(normalMapUrl);
-                
-                const earthMaterial = new THREE.MeshPhongMaterial({
-                    map: earthMap,
-                    normalMap: normalMap,
-                    normalScale: new THREE.Vector2(0.05, 0.05),
-                    shininess: 5
-                });
-                
-                earth = new THREE.Mesh(earthGeometry, earthMaterial);
-                earthGroup.add(earth);
-                
-                // 初始设置
-                dayNightSphere.rotation.y = Math.PI / 2;
-                
-            } catch (e) {
-                console.error('加载地球时出错:', e);
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error-message').style.display = 'block';
-                createBasicEarth();
-            }
+            const specularMap = textureLoader.load(
+                'https://threejs.org/examples/textures/planets/earth_specular_2048.jpg',
+                undefined,
+                undefined,
+                function(error) {
+                    console.error('高光贴图加载失败:', error);
+                }
+            );
+            
+            // 创建地球材质
+            const earthMaterial = new THREE.MeshPhongMaterial({
+                map: earthTexture,
+                bumpMap: bumpMap,
+                bumpScale: 2,
+                specularMap: specularMap,
+                specular: new THREE.Color(0x333333),
+                shininess: 15
+            });
+            
+            const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            earthGroup.add(earth);
         }
         
-        // 初始设置
-        dayNightSphere.rotation.y = Math.PI / 2;
-        
-        // 尝试初始化地球
+        // 初始化地球
         initEarth();
         
         // 动画循环
         function animate() {
             requestAnimationFrame(animate);
             
+            // 地球自转
             if (isRotating && earthLoaded) {
-                // 旋转整个地球组
                 earthGroup.rotation.y += rotationSpeed;
                 dayNightSphere.rotation.y += rotationSpeed;
             }
             
+            // 更新太阳与昼夜效果相对位置
+            const time = Date.now() * 0.0001;
+            sunLight.position.x = sunDistance * Math.cos(time * 0.1);
+            sunLight.position.z = sunDistance * Math.sin(time * 0.1);
+            sunIndicator.position.copy(sunLight.position);
+            sunGlow.position.copy(sunLight.position);
+            
+            // 更新昼夜球体方向
+            dayNightSphere.quaternion.copy(earthGroup.quaternion);
+            
+            // 更新控制器
             controls.update();
+            
+            // 渲染场景
             renderer.render(scene, camera);
         }
         
-        camera.lookAt(0, 0, 0);
-        
-        // 启动动画
+        // 开始动画
         animate();
     </script>
 </body>
