@@ -1,87 +1,595 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GitHub全景展厅 - 稳定加载版</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <title>地球自转演示 - 紧贴地球表面的标注</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000;
         }
-
-        #container {
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            position: relative;
-            background: #1a1a1a;
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
         }
-
+        button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            transition: background 0.3s;
+        }
+        button:hover { 
+            background: #2980b9; 
+        }
+        button:active {
+            background: #1c5980;
+        }
+        .slider-container {
+            display: inline-block;
+            margin: 0 10px;
+            color: white;
+            text-shadow: 0 0 5px rgba(0,0,0,0.8);
+            font-family: Arial, sans-serif;
+        }
         #loading {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: #fff;
+            color: white;
             font-family: Arial, sans-serif;
-            text-align: center;
-            transition: opacity 0.3s;
+            font-size: 24px;
+            text-shadow: 0 0 10px #4da6ff;
+            z-index: 200;
         }
-
-        .panorama-image {
-            width: 400%;
+        .loading-bar {
+            width: 300px;
+            height: 20px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            margin: 10px auto;
+            overflow: hidden;
+        }
+        .loading-progress {
             height: 100%;
-            background-size: auto 100%;
-            transform-origin: center;
-            transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            background: linear-gradient(90deg, #3498db, #2980b9);
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.3s;
         }
-
-        @media (max-width: 768px) {
-            .panorama-image {
-                width: 800%;
-            }
+        #error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff5555;
+            font-family: Arial, sans-serif;
+            font-size: 20px;
+            text-align: center;
+            display: none;
+            z-index: 300;
+        }
+        #error-message button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
         }
     </style>
 </head>
 <body>
-    <div id="container">
-        <div id="loading">正在加载全景图...</div>
-        <div class="panorama-image" id="panorama"></div>
+    <div id="controls">
+        <div class="slider-container">
+            <label for="speed">自转速度:</label>
+            <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1">
+        </div>
+        <button id="toggleRotation">暂停自转</button>
+        <button id="resetView">重置视角</button>
+        <button id="toggleAxis">隐藏地轴</button>
+        <button id="toggleGrid">隐藏经纬线</button>
     </div>
-
+    
+    <div id="loading">
+        <div>正在加载地球数据...</div>
+        <div class="loading-bar">
+            <div class="loading-progress" id="progress-bar"></div>
+        </div>
+    </div>
+    
+    <div id="error-message">
+        <div>⚠️ 资源加载失败</div>
+        <div>本地资源文件缺失或损坏</div>
+        <button id="retry-button">重试加载</button>
+    </div>
+    
+    <script src="three.min.js"></script>
+    <script src="OrbitControls.js"></script>
     <script>
-        // 配置区（用户需修改部分）=======================================
-        const CONFIG = {
-            github: {
-                user: 'heifengzhaikengwang',
-                repo: 'vr',
-                branch: 'main',
-                image: 'mmexport1743515160971.jpg'
-            },
-            sensitivity: 0.35  // 鼠标灵敏度 (0.1-1)
-        };
-        // ============================================================
+        // 初始化场景、相机和渲染器
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x07071a);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 10000);
+        camera.position.set(0, 0, 800);
+        
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            powerPreference: "high-performance"
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+        
+        // 添加轨道控制器
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 400;
+        controls.maxDistance = 2000;
+        
+        // 辅助函数：数字转中文数字
+        function getChineseNumber(num) {
+            const chineseNumbers = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+            return chineseNumbers[num] || num.toString();
+        }
+        
+        // ==========================================
+        // 城市标记牢固附着在地球表面
+        // ==========================================
+        const earthRadius = 200;
+        function createCityMarker(cityName, lat, lng, color = 0xff0000) {
+            // 修正坐标计算（匹配Three.js坐标系）
+            const phi = (90 - lat) * Math.PI / 180;
+            const theta = (lng + 180) * Math.PI / 180;
+            
+            const x = -earthRadius * 1.01 * Math.sin(phi) * Math.cos(theta);
+            const y = earthRadius * 1.01 * Math.cos(phi);
+            const z = earthRadius * 1.01 * Math.sin(phi) * Math.sin(theta);
+            
+            // 创建地表圆点
+            const dotGeometry = new THREE.SphereGeometry(6, 12, 12);
+            const dotMaterial = new THREE.MeshBasicMaterial({ color: color });
+            const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+            dot.position.set(x, y, z);
+            earthGroup.add(dot);
 
-        // 核心逻辑（无需修改）=========================================
-        class PanoramaViewer {
-            constructor() {
-                this.imageUrl = this._buildImageUrl();
-                this.loadState = {
-                    loaded: false,
-                    progress: 0
-                };
-                this.init();
+            // 创建文字标签
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 64;
+            context.font = 'bold 40px Arial';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.strokeStyle = '#000000';
+            context.lineWidth = 3;
+            context.fillStyle = '#ffff00'; // 黄色文字
+            context.strokeText(cityName, canvas.width / 2, canvas.height / 2);
+            context.fillText(cityName, canvas.width / 2, canvas.height / 2);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(80, 35, 1);
+            sprite.position.set(x * 1.15, y * 1.15 + 15, z * 1.15);
+            earthGroup.add(sprite);
+            
+            return { dot, sprite };
+        }
+        
+        // ==========================================
+        // 创建赤道时区与经度标注 - 紧贴地球表面
+        // ==========================================
+        function createEquatorLabel(text, lng, heightOffset = 0, color = 0x00ff00, fontSize = 24, isVertical = true) {
+            // 赤道纬度为0
+            const phi = (90 - 0) * Math.PI / 180; // 纬度0
+            const theta = (lng + 180) * Math.PI / 180;
+            
+            // 优化：将标注紧贴地球表面，使用1.015的倍数而不是1.2
+            const x = -earthRadius * 1.015 * Math.sin(phi) * Math.cos(theta);
+            const y = earthRadius * 1.015 * Math.cos(phi);
+            const z = earthRadius * 1.015 * Math.sin(phi) * Math.sin(theta);
+            
+            // 创建文字画布
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            if (isVertical) {
+                canvas.width = 128;
+                canvas.height = 128; // 竖排需要更高画布
+            } else {
+                canvas.width = 128;
+                canvas.height = 64; // 横排文字
             }
-
-            _buildImageUrl() {
-                const { user, repo, branch, image } = CONFIG.github;
-                return `https://cdn.jsdelivr.net/gh/${user}/${repo}@${branch}/${image}`;
+            
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.font = `bold ${fontSize}px Arial`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+            context.strokeStyle = '#000000';
+            context.lineWidth = 2;
+            
+            if (isVertical) {
+                // 竖排文字：逐字换行
+                const chars = text.split('');
+                const lineHeight = fontSize + 2;
+                chars.forEach((char, index) => {
+                    const y = canvas.height / 2 - (chars.length - 1) * lineHeight / 2 + index * lineHeight;
+                    context.strokeText(char, canvas.width / 2, y);
+                    context.fillText(char, canvas.width / 2, y);
+                });
+            } else {
+                // 横排文字
+                context.strokeText(text, canvas.width / 2, canvas.height / 2);
+                context.fillText(text, canvas.width / 2, canvas.height / 2);
             }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(material);
+            
+            if (isVertical) {
+                // 优化：减小sprite缩放比例，使其更贴近地球表面
+                sprite.scale.set(24, 40, 1); // 竖排文字
+            } else {
+                sprite.scale.set(40, 20, 1); // 横排文字
+            }
+            
+            // 优化：将标注紧贴地球表面
+            sprite.position.set(x, y + heightOffset, z);
+            earthGroup.add(sprite);
+            
+            return sprite;
+        }
 
-            _updateLoadingText() {
-                const loading = document.getElementById('loading');
-                if (this.loadState.progress < 100) {
-                    loading.textContent = `加载中 ${Math.floor(this.loadState.progress)}%`;
-               …
+        // ==========================================
+        // 太阳设置
+        // ==========================================
+        const sunDistance = 600;
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        sunLight.position.set(sunDistance, 0, 0);
+        scene.add(sunLight);
+        
+        const sunGeometry = new THREE.SphereGeometry(100, 32, 32);
+        const sunMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffee00,
+            emissive: 0xff8800,
+            emissiveIntensity: 0.5
+        });
+        const sunIndicator = new THREE.Mesh(sunGeometry, sunMaterial);
+        sunIndicator.position.set(sunDistance, 0, 0);
+        scene.add(sunIndicator);
+        
+        const sunGlowGeometry = new THREE.SphereGeometry(120, 32, 32);
+        const sunGlowMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffcc00,
+            transparent: true,
+            opacity: 0.3
+        });
+        const sunGlow = new THREE.Mesh(sunGlowGeometry, sunGlowMaterial);
+        sunGlow.position.set(sunDistance, 0, 0);
+        scene.add(sunGlow);
+        
+        // 创建地球组
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+        
+        // 创建地轴
+        const axisMaterial = new THREE.LineBasicMaterial({ color: 0xff4444, linewidth: 2 });
+        const axisGeometry = new THREE.BufferGeometry();
+        const axisExtension = earthRadius * 1.5;
+        const axisPoints = [
+            new THREE.Vector3(0, axisExtension, 0),
+            new THREE.Vector3(0, -axisExtension, 0)
+        ];
+        axisGeometry.setFromPoints(axisPoints);
+        const axis = new THREE.Line(axisGeometry, axisMaterial);
+        earthGroup.add(axis);
+
+        // 添加极点标记
+        const poleGeometry = new THREE.SphereGeometry(8, 16, 16);
+        const northPoleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const southPoleMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+        
+        const northPole = new THREE.Mesh(poleGeometry, northPoleMaterial);
+        northPole.position.set(0, earthRadius, 0);
+        earthGroup.add(northPole);
+        
+        const southPole = new THREE.Mesh(poleGeometry, southPoleMaterial);
+        southPole.position.set(0, -earthRadius, 0);
+        earthGroup.add(southPole);
+        
+        // 添加北京
+        createCityMarker('北京', 39.9, 116.4, 0xff5555);
+        
+        // 添加卡塔尔
+        createCityMarker('卡塔尔', 25.276987, 51.522152, 0x55ff55);
+        
+        // 添加中文时区标注 - 放在两条经线中间位置，紧贴地球表面
+        for (let i = 1; i <= 12; i++) {
+            // 东时区 (1-12)
+            const eastLng = i * 15 - 7.5; // 位于两条经线中间
+            createEquatorLabel(`东${getChineseNumber(i)}区`, eastLng, 6, 0x00ff00, 16, true);
+            
+            // 西时区 (1-12)
+            const westLng = -i * 15 + 7.5; // 位于两条经线中间
+            createEquatorLabel(`西${getChineseNumber(i)}区`, westLng, 6, 0x00ff00, 16, true);
+        }
+        
+        // 0时区特殊标注 (本初子午线)
+        createEquatorLabel(`零时区`, -7.5, 6, 0x00ff00, 16, true); // 位于352.5°E和7.5°E之间
+        
+        // 180°国际日期变更线特殊标注
+        createEquatorLabel(`日界线`, 172.5, 6, 0x00ff00, 16, true); // 位于165°E和180°E之间
+
+        // ==========================================
+        // 银河背景 - 简化实现
+        // ==========================================
+        const starCount = 2000;
+        const starsGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+        
+        for (let i = 0; i < starCount * 3; i += 3) {
+            starPositions[i] = (Math.random() - 0.5) * 10000;
+            starPositions[i + 1] = (Math.random() - 0.5) * 10000;
+            starPositions[i + 2] = (Math.random() - 0.5) * 10000;
+        }
+        
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        
+        const starMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 2,
+            sizeAttenuation: true
+        });
+        
+        const stars = new THREE.Points(starsGeometry, starMaterial);
+        scene.add(stars);
+        
+        // ==========================================
+        // 昼夜效果（无晨昏线）
+        // ==========================================
+        const dayNightGeometry = new THREE.SphereGeometry(earthRadius + 0.5, 32, 32);
+        const dayNightMaterial = new THREE.MeshBasicMaterial({
+            color: 0x222255,
+            transparent: true,
+            opacity: 0.55,
+            side: THREE.BackSide
+        });
+        const dayNightSphere = new THREE.Mesh(dayNightGeometry, dayNightMaterial);
+        scene.add(dayNightSphere);
+        
+        // ==========================================
+        // 创建24条绿色实线经线 + 经度标注
+        // ==========================================
+        function createEarthGrid() {
+            const gridGroup = new THREE.Group();
+            
+            // 创建24条经线，间隔15度，全部使用绿色实线
+            for (let m = 0; m < 24; m++) {
+                const angle = (m / 24) * Math.PI * 2;
+                const lineGeometry = new THREE.BufferGeometry();
+                const linePositions = [];
+                
+                // 每条经线由多个点组成
+                for (let i = 0; i <= 32; i++) {
+                    const phi = (i / 32) * Math.PI;
+                    const x = earthRadius * 1.01 * Math.sin(phi) * Math.cos(angle);
+                    const y = earthRadius * 1.01 * Math.cos(phi);
+                    const z = earthRadius * 1.01 * Math.sin(phi) * Math.sin(angle);
+                    
+                    linePositions.push(x, y, z);
+                }
+                
+                lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+                const lineMaterial = new THREE.LineBasicMaterial({ 
+                    color: 0x00ff00, // 绿色实线
+                    linewidth: 1.5
+                });
+                const line = new THREE.Line(lineGeometry, lineMaterial);
+                gridGroup.add(line);
+                
+                // 为每条经线添加经度标注 - 紧贴地球表面
+                const longitude = m * 15;
+                let label = "";
+                if (longitude === 0) {
+                    label = "0°";
+                } else if (longitude === 180) {
+                    label = "180°";
+                } else if (longitude < 180) {
+                    label = `${longitude}°E`;
+                } else {
+                    label = `${360 - longitude}°W`;
+                }
+                
+                // 在赤道下方添加经度标注，使用黄色，横排，紧贴地球
+                createEquatorLabel(label, longitude, -6, 0xffff00, 16, false);
+            }
+            
+            return gridGroup;
+        }
+        
+        const earthGrid = createEarthGrid();
+        earthGroup.add(earthGrid);
+
+        // 控制变量
+        let isRotating = true;
+        let rotationSpeed = 0.01;
+        let gridVisible = true;
+        
+        // 地球材质加载成功标志
+        let earthLoaded = false;
+        
+        // 交互控件
+        document.getElementById('speed').addEventListener('input', function(e) {
+            rotationSpeed = parseFloat(e.target.value) * 0.01;
+        });
+        
+        document.getElementById('toggleRotation').addEventListener('click', function(e) {
+            isRotating = !isRotating;
+            e.target.textContent = isRotating ? '暂停自转' : '开始自转';
+        });
+        
+        document.getElementById('resetView').addEventListener('click', function() {
+            camera.position.set(0, 0, 800);
+            camera.lookAt(0, 0, 0);
+            controls.reset();
+        });
+        
+        document.getElementById('toggleAxis').addEventListener('click', function(e) {
+            const showAxis = !axis.visible;
+            axis.visible = showAxis;
+            northPole.visible = showAxis;
+            southPole.visible = showAxis;
+            e.target.textContent = showAxis ? '隐藏地轴' : '显示地轴';
+        });
+        
+        document.getElementById('toggleGrid').addEventListener('click', function(e) {
+            gridVisible = !gridVisible;
+            earthGrid.visible = gridVisible;
+            e.target.textContent = gridVisible ? '隐藏经纬线' : '显示经纬线';
+        });
+        
+        // 重试按钮
+        document.getElementById('retry-button').addEventListener('click', function() {
+            document.getElementById('error-message').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            initEarth();
+        });
+        
+        // 窗口大小变化处理
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 创建基本地球 - 当纹理加载失败时使用
+        function createBasicEarth() {
+            console.log("使用基础地球材质");
+            
+            const earthGeometry = new THREE.SphereGeometry(earthRadius, 32, 32);
+            const earthMaterial = new THREE.MeshPhongMaterial({
+                color: 0x2233ff,
+                emissive: 0x112244,
+                specular: 0x333333,
+                shininess: 15
+            });
+            
+            const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            earthGroup.add(earth);
+            
+            earthLoaded = true;
+            return earth;
+        }
+        
+        // 初始化地球 - 尝试加载纹理地球
+        function initEarth() {
+            // 创建地球
+            const earthGeometry = new THREE.SphereGeometry(earthRadius, 32, 32);
+            
+            // 设置加载管理器
+            const loadingManager = new THREE.LoadingManager();
+            const progressBar = document.getElementById('progress-bar');
+            
+            loadingManager.onProgress = function(url, itemsLoaded, itemsTotal) {
+                const progress = Math.round(itemsLoaded / itemsTotal * 100);
+                progressBar.style.width = progress + '%';
+                console.log(`加载进度: ${progress}%`);
+            };
+            
+            loadingManager.onLoad = function() {
+                document.getElementById('loading').style.display = 'none';
+                console.log('所有本地资源加载完成！');
+                earthLoaded = true;
+            };
+            
+            loadingManager.onError = function(url) {
+                console.error('本地资源加载失败:', url);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error-message').style.display = 'block';
+                // 回退到基础地球
+                if (earthGroup.children.some(child => child instanceof THREE.Mesh && child.geometry instanceof THREE.SphereGeometry)) {
+                    // 已有地球，不需要再次创建
+                } else {
+                    createBasicEarth();
+                }
+            };
+            
+            const textureLoader = new THREE.TextureLoader(loadingManager);
+            
+            // 使用本地地球纹理
+            const earthMapUrl = 'earth_atmos_2048.jpg';
+            const normalMapUrl = 'earth_normal_2048.jpg';
+            
+            let earthMap;
+            let normalMap;
+            let earth;
+            
+            try {
+                earthMap = textureLoader.load(earthMapUrl);
+                normalMap = textureLoader.load(normalMapUrl);
+                
+                const earthMaterial = new THREE.MeshPhongMaterial({
+                    map: earthMap,
+                    normalMap: normalMap,
+                    normalScale: new THREE.Vector2(0.05, 0.05),
+                    shininess: 5
+                });
+                
+                earth = new THREE.Mesh(earthGeometry, earthMaterial);
+                earthGroup.add(earth);
+                
+                // 初始设置
+                dayNightSphere.rotation.y = Math.PI / 2;
+                
+            } catch (e) {
+                console.error('加载地球时出错:', e);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error-message').style.display = 'block';
+                createBasicEarth();
+            }
+        }
+        
+        // 初始设置
+        dayNightSphere.rotation.y = Math.PI / 2;
+        
+        // 尝试初始化地球
+        initEarth();
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (isRotating && earthLoaded) {
+                // 旋转整个地球组
+                earthGroup.rotation.y += rotationSpeed;
+                dayNightSphere.rotation.y += rotationSpeed;
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        camera.lookAt(0, 0, 0);
+        
+        // 启动动画
+        animate();
+    </script>
+</body>
+</html>
